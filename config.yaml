@@ -1,0 +1,16 @@
+training:
+  batch_size: 64
+  epochs: 5
+  lr: 0.0001   # {SGD: 0.1, Adam: 0.001}
+  optimizer: Adam   # SGD or Adam
+  model_name: AlexNet   # [DNN, MNIST_CNN, CIFAR10_CNN, LeNet_5, AlexNet, B_LeNet_5, B_AlexNet]
+  dataset: CIFAR10   # [MNIST, CIFAR10]
+  early_exit: False   # bool
+  threshold: [0.0001, 0.05]
+
+FL:
+  global_rounds: 50
+  num_clients: 10
+  dirichlet: 0.1   # [0.1, 1e20]
+  ite_num: 1
+  cohort: 5
