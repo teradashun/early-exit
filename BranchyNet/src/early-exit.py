@@ -7,7 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-from .models import DNN, MNIST_CNN, CIFAR10_CNN, LeNet_5, AlexNet
+from .models import DNN, MNIST_CNN, CIFAR10_CNN, LeNet_5, AlexNet, ResNet_18, ResNet_34
 from .BranchyNet import B_LeNet_5, B_AlexNet
 from .dataset import get_datasets, split_dataset
 from .utils import set_seed, choose_clients, select_optimizer, load_config, acc_average
@@ -39,6 +39,8 @@ if __name__ == "__main__":
 
     train_loader, val_loader, test_loader = get_datasets(batch_size, dataset, val_ratio=0.2)
 
+    num_classes = 10 if dataset in ["MNIST", "CIFAR10"] else 100
+
     if model_name == "DNN":
         model = DNN().to(device)
     elif model_name == "MNIST_CNN":
@@ -49,10 +51,16 @@ if __name__ == "__main__":
         model = LeNet_5().to(device)
     elif model_name == "AlexNet":
         model = AlexNet().to(device)
+    elif model_name == "ResNet_18":
+        model = ResNet_18(num_classes=num_classes).to(device)
+    elif model_name == "ResNet_34":
+        model = ResNet_34(num_classes=num_classes).to(device)
     elif model_name == "B_LeNet_5":
         model = B_LeNet_5().to(device)
     elif model_name == "B_AlexNet":
         model = B_AlexNet().to(device)
+    else:
+        raise ValueError(f"Unsupported model: {model_name}")
     
     optimizer = select_optimizer(optimizer, model, lr)
 

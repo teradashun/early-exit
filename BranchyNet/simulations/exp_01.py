@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 
-from src.models import DNN, MNIST_CNN, CIFAR10_CNN, LeNet_5, AlexNet
-from src.BranchyNet import B_LeNet_5, B_AlexNet
+from src.models import DNN, MNIST_CNN, CIFAR10_CNN, LeNet_5, AlexNet, ResNet_18, ResNet_34
+from src.BranchyNet import B_LeNet_5, B_AlexNet, B_ResNet_18, B_ResNet_34
 from src.dataset import get_datasets, split_dataset
 from src.utils import set_seed, choose_clients, select_optimizer, load_config, calculate_percentile_thresholds, calculate_b_alexnet_thresholds
 from src.trainer import train
@@ -133,6 +133,41 @@ def early_test(model, test_loader, device, threshold, model_name):
 
                 curr_time = starter.elapsed_time(ender)
                 timings.append(curr_time)
+            
+            elif model_name == "B_ResNet_18" or model_name == "B_ResNet_34":
+                # 計測開始
+                torch.cuda.synchronize()
+                starter.record()
+                out_1, out_2, out_3, out_4 = model(inputs, threshold)
+
+                """
+                # ソフトマックスで閾値判定
+                probs_branch = F.softmax(out_branch, dim=1)
+                probs_main = F.softmax(out_main, dim=1)
+
+                probs, preds_branch = torch.max(probs_branch, dim=1)
+                _, preds_main = torch.max(probs_main, dim=1)
+                outputs = torch.where(probs >= threshold, preds_branch, preds_main)
+                """
+                
+                if out_2 is None:
+                    _, outputs = torch.max(out_1, dim=1)
+                
+                elif out_3 is None:
+                    _, outputs = torch.max(out_2, dim=1)
+
+                elif out_4 is None:           
+                    _, outputs = torch.max(out_3, dim=1)
+                
+                else:
+                    _, outputs = torch.max(out_4, dim=1)
+                
+                # 計測終了
+                ender.record()
+                torch.cuda.synchronize()
+
+                curr_time = starter.elapsed_time(ender)
+                timings.append(curr_time)
 
             correct_preds += outputs.eq(labels).sum().item()
             total_preds += outputs.size(0)
@@ -167,6 +202,8 @@ if __name__ == "__main__":
     train_loader, val_loader, _ = get_datasets(batch_size, dataset, val_ratio=0.2)
     _, _, speed_test_loader = get_datasets(1, dataset, val_ratio=0.2)
 
+    num_classes = 10 if dataset in ["MNIST", "CIFAR10"] else 100
+
     if model_name == "DNN":
         model = DNN().to(device)
     elif model_name == "MNIST_CNN":
@@ -177,11 +214,19 @@ if __name__ == "__main__":
         model = LeNet_5().to(device)
     elif model_name == "AlexNet":
         model = AlexNet().to(device)
+    elif model_name == "ResNet_18":
+        model = ResNet_18(num_classes=num_classes).to(device)
+    elif model_name == "ResNet_34":
+        model = ResNet_34(num_classes=num_classes).to(device)
     elif model_name == "B_LeNet_5":
         model = B_LeNet_5().to(device)
     elif model_name == "B_AlexNet":
         model = B_AlexNet().to(device)
-    
+    elif model_name == "B_ResNet_18":
+        model = B_ResNet_18(num_classes=num_classes).to(device)
+    elif model_name == "B_ResNet_34":
+        model = B_ResNet_34(num_classes=num_classes).to(device)
+
     optimizer = select_optimizer(optimizer, model, lr)
 
     model.train()
@@ -201,7 +246,7 @@ if __name__ == "__main__":
 
             train(optimizer, model, train_loader, device, model_name)
         
-        if model_name in ["B_LeNet_5", "B_AlexNet"]:
+        if model_name in ["B_LeNet_5", "B_AlexNet", "B_ResNet_18", "B_ResNet_34"]:
             num_thresholds = 8
         
         else:
@@ -219,6 +264,15 @@ if __name__ == "__main__":
 
         elif model_name == "B_AlexNet":
             test_thresholds = calculate_b_alexnet_thresholds(model, val_loader, device, num_thresholds=num_thresholds)
+            print(f"算出された閾値: {test_thresholds}")
+
+            for th in test_thresholds:
+                test_acc, timings = early_test(model, speed_test_loader, device, th, model_name)
+                speed_history.append(np.mean(timings))
+                acc_history.append(test_acc)
+        
+        elif model_name == "B_ResNet_18" or model_name == "B_ResNet_34":
+            test_thresholds = calculate_percentile_thresholds(model, val_loader, device, num_thresholds=num_thresholds)
             print(f"算出された閾値: {test_thresholds}")
 
             for th in test_thresholds:

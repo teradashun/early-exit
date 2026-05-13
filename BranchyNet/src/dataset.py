@@ -28,6 +28,20 @@ def get_datasets(batch_size, data_name, val_ratio=0.2):
                                             transform=transforms.ToTensor(),
                                             download=True)
     
+    elif data_name == "CIFAR100":
+        full_train_dataset = torchvision.datasets.CIFAR100(root="./data/CIFAR_100",
+                                            train=True,
+                                            transform=transforms.ToTensor(),
+                                            download=True)
+
+        test_dataset = torchvision.datasets.CIFAR100(root="./data/CIFAR_100",
+                                            train=False,
+                                            transform=transforms.ToTensor(),
+                                            download=True)
+    
+    else:
+        raise ValueError(f"Unsupported dataset: {data_name}")
+    
     val_size = int(len(full_train_dataset) * val_ratio)
     train_size = len(full_train_dataset) - val_size
 

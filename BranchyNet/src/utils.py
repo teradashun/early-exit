@@ -108,3 +108,39 @@ def calculate_b_alexnet_thresholds(model, val_loader, device, num_thresholds=8):
     thresholds.append([float('inf'), float('inf')])
 
     return thresholds
+
+
+def calculate_b_alexnet_thresholds(model, val_loader, device, num_thresholds=8):
+    """
+    2つのExit層に対して、パーセンタイルに基づいた閾値を計算する
+    """
+    model.eval()
+    entropies_exit1 = []
+    entropies_exit2 = []
+
+    with torch.no_grad():
+        for inputs, _ in val_loader:
+            inputs = inputs.to(device)
+            out_1, out_2, _ = model(inputs)
+        
+            prob1 = torch.softmax(out_1, dim=1)
+            entropy1 = -torch.sum(prob1 * torch.log(prob1 + 1e-8), dim=1)
+            entropies_exit1.extend(entropy1.cpu().numpy())
+            
+            # Exit 2 のエントロピー
+            prob2 = torch.softmax(out_2, dim=1)
+            entropy2 = -torch.sum(prob2 * torch.log(prob2 + 1e-8), dim=1)
+            entropies_exit2.extend(entropy2.cpu().numpy())
+
+    percentiles = np.linspace(0, 100, num_thresholds)
+    
+    th1_list = np.percentile(entropies_exit1, percentiles)
+    th2_list = np.percentile(entropies_exit2, percentiles)
+
+    # list(list)形式にする
+    thresholds = [[th1, th2] for th1, th2 in zip(th1_list, th2_list)]
+
+    # 最後に全てMain Exitに行く閾値を追加
+    thresholds.append([float('inf'), float('inf')])
+
+    return thresholds

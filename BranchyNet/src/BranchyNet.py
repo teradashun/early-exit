@@ -118,3 +118,115 @@ class B_AlexNet(nn.Module):
         out3 = self.branch3(x3)
 
         return out1, out2, out3
+
+
+class BasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, in_channels, out_channels, stride=1):
+        super(BasicBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_channels != out_channels * self.expansion:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels * self.expansion, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(out_channels * self.expansion)
+            )
+
+    def forward(self, x):
+        out = self.relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+        out += self.shortcut(x)
+        out = self.relu(out)
+        return out
+
+class B_ResNet(nn.Module):
+    def __init__(self, block, num_blocks, num_classes=100):
+        super(B_ResNet, self).__init__()
+        self.in_channels = 64
+
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+        # Main Layers
+        self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
+        self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
+
+        # Early Exits
+        self.exit1 = self._make_early_exit(64 * block.expansion, num_classes)
+        self.exit2 = self._make_early_exit(128 * block.expansion, num_classes)
+        self.exit3 = self._make_early_exit(256 * block.expansion, num_classes)
+
+        # Main Exit (Exit 4)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(512 * block.expansion, num_classes)
+    
+    def _make_layer(self, block, out_channels, num_blocks, stride):
+        strides = [stride] + [1] * (num_blocks - 1)
+        layers = []
+        for s in strides:
+            layers.append(block(self.in_channels, out_channels, s))
+            self.in_channels = out_channels * block.expansion
+        
+        return nn.Sequential(*layers)
+    
+    def _make_early_exit(self, in_channels, num_classes):
+        return nn.Sequential(
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(in_channels),
+            nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.Flatten(),
+            nn.Linear(in_channels, num_classes)
+        )
+
+    def forward(self, x, threshold=None):
+        x = self.maxpool(self.relu(self.bn1(self.conv1(x))))
+
+        x = self.layer1(x)
+        out1 = self.exit1(x)
+        if threshold is not None:
+            probs_branch1 = F.softmax(out1, dim=1)
+            entropy1 = torch.sum(-probs_branch1 * torch.log(probs_branch1 + 1e-9), dim=1)
+            if torch.all(entropy1 <= threshold[0]):
+                return out1, None, None, None
+
+        x = self.layer2(x)
+        out2 = self.exit2(x)
+        if threshold is not None:
+            probs_branch2 = F.softmax(out2, dim=1)
+            entropy2 = torch.sum(-probs_branch2 * torch.log(probs_branch2 + 1e-9), dim=1)
+            if torch.all(entropy2 <= threshold[1]):
+                return out_1, out2, None, None
+
+        x = self.layer3(x)
+        out3 = self.exit3(x)
+        if threshold is not None:
+            probs_branch3 = F.softmax(out3, dim=1)
+            entropy3 = torch.sum(-probs_branch3 * torch.log(probs_branch3 + 1e-9), dim=1)
+            if torch.all(entropy3 <= threshold[2]):
+                return out1, out2, out3, None
+
+        x = self.layer4(x)
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        out4 = self.fc(x)
+
+        return out1, out2, out3, out4
+
+
+def B_ResNet_18(num_classes=100):
+    return B_ResNet(BasicBlock, [2, 2, 2, 2], num_classes=num_classes)
+
+
+def B_ResNet_34(num_classes=100):
+    return B_ResNet(BasicBlock, [3, 4, 6, 3], num_classes=num_classes)
