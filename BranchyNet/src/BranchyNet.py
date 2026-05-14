@@ -145,15 +145,15 @@ class BasicBlock(nn.Module):
         out = self.relu(out)
         return out
 
+
 class B_ResNet(nn.Module):
     def __init__(self, block, num_blocks, num_classes=100):
         super(B_ResNet, self).__init__()
         self.in_channels = 64
 
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
         # Main Layers
         self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
@@ -190,7 +190,7 @@ class B_ResNet(nn.Module):
         )
 
     def forward(self, x, threshold=None):
-        x = self.maxpool(self.relu(self.bn1(self.conv1(x))))
+        x = self.relu(self.bn1(self.conv1(x)))
 
         x = self.layer1(x)
         out1 = self.exit1(x)
@@ -206,7 +206,7 @@ class B_ResNet(nn.Module):
             probs_branch2 = F.softmax(out2, dim=1)
             entropy2 = torch.sum(-probs_branch2 * torch.log(probs_branch2 + 1e-9), dim=1)
             if torch.all(entropy2 <= threshold[1]):
-                return out_1, out2, None, None
+                return out1, out2, None, None
 
         x = self.layer3(x)
         out3 = self.exit3(x)

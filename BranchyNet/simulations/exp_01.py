@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from src.models import DNN, MNIST_CNN, CIFAR10_CNN, LeNet_5, AlexNet, ResNet_18, ResNet_34
 from src.BranchyNet import B_LeNet_5, B_AlexNet, B_ResNet_18, B_ResNet_34
 from src.dataset import get_datasets, split_dataset
-from src.utils import set_seed, choose_clients, select_optimizer, load_config, calculate_percentile_thresholds, calculate_b_alexnet_thresholds
+from src.utils import set_seed, choose_clients, select_optimizer, load_config, calculate_percentile_thresholds, calculate_b_alexnet_thresholds, calculate_b_resnet_thresholds
 from src.trainer import train
 from src.server import federated_learning
 
@@ -272,7 +272,7 @@ if __name__ == "__main__":
                 acc_history.append(test_acc)
         
         elif model_name == "B_ResNet_18" or model_name == "B_ResNet_34":
-            test_thresholds = calculate_percentile_thresholds(model, val_loader, device, num_thresholds=num_thresholds)
+            test_thresholds = calculate_b_resnet_thresholds(model, val_loader, device, num_thresholds=num_thresholds)
             print(f"算出された閾値: {test_thresholds}")
 
             for th in test_thresholds:
@@ -285,8 +285,8 @@ if __name__ == "__main__":
             speed_history.append(np.mean(timings))
             acc_history.append(test_acc)
     
-    pred_speed = np.array(speed_history).reshape(ite_num, 1).mean(axis=0)
-    final_acc = np.array(acc_history).reshape(ite_num, 1).mean(axis=0)
+    pred_speed = np.array(speed_history).reshape(ite_num, 9).mean(axis=0)
+    final_acc = np.array(acc_history).reshape(ite_num, 9).mean(axis=0)
 
     # 出力先のパス設定
     save_dir = os.path.join(

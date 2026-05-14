@@ -105,23 +105,24 @@ def calculate_b_alexnet_thresholds(model, val_loader, device, num_thresholds=8):
     thresholds = [[th1, th2] for th1, th2 in zip(th1_list, th2_list)]
 
     # 最後に全てMain Exitに行く閾値を追加
-    thresholds.append([float('inf'), float('inf')])
+    thresholds.append([-float('inf'), -float('inf')])
 
     return thresholds
 
 
-def calculate_b_alexnet_thresholds(model, val_loader, device, num_thresholds=8):
+def calculate_b_resnet_thresholds(model, val_loader, device, num_thresholds=8):
     """
-    2つのExit層に対して、パーセンタイルに基づいた閾値を計算する
+    3つのExit層に対して、パーセンタイルに基づいた閾値を計算する
     """
     model.eval()
     entropies_exit1 = []
     entropies_exit2 = []
+    entropies_exit3 = []
 
     with torch.no_grad():
         for inputs, _ in val_loader:
             inputs = inputs.to(device)
-            out_1, out_2, _ = model(inputs)
+            out_1, out_2, out_3, _ = model(inputs)
         
             prob1 = torch.softmax(out_1, dim=1)
             entropy1 = -torch.sum(prob1 * torch.log(prob1 + 1e-8), dim=1)
@@ -132,15 +133,21 @@ def calculate_b_alexnet_thresholds(model, val_loader, device, num_thresholds=8):
             entropy2 = -torch.sum(prob2 * torch.log(prob2 + 1e-8), dim=1)
             entropies_exit2.extend(entropy2.cpu().numpy())
 
+            # Exit 3 のエントロピー
+            prob3 = torch.softmax(out_3, dim=1)
+            entropy3 = -torch.sum(prob3 * torch.log(prob3 + 1e-8), dim=1)
+            entropies_exit3.extend(entropy3.cpu().numpy())
+
     percentiles = np.linspace(0, 100, num_thresholds)
     
     th1_list = np.percentile(entropies_exit1, percentiles)
     th2_list = np.percentile(entropies_exit2, percentiles)
+    th3_list = np.percentile(entropies_exit3, percentiles)
 
     # list(list)形式にする
-    thresholds = [[th1, th2] for th1, th2 in zip(th1_list, th2_list)]
+    thresholds = [[th1, th2, th3] for th1, th2, th3 in zip(th1_list, th2_list, th3_list)]
 
     # 最後に全てMain Exitに行く閾値を追加
-    thresholds.append([float('inf'), float('inf')])
+    thresholds.append([-float('inf'), -float('inf'), -float('inf')])
 
     return thresholds
