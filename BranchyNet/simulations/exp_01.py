@@ -11,11 +11,11 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 
-from src.models import DNN, MNIST_CNN, CIFAR10_CNN, LeNet_5, AlexNet
-from src.BranchyNet import B_LeNet_5, B_AlexNet
+from src.models import DNN, MNIST_CNN, CIFAR10_CNN, LeNet_5, AlexNet, ResNet_18, ResNet_34
+from src.BranchyNet import B_LeNet_5, B_AlexNet, B_ResNet_18, B_ResNet_34
 from src.dataset import get_datasets, split_dataset
-from src.utils import set_seed, choose_clients, select_optimizer, load_config, acc_average
-from src.trainer import train, test, early_test
+from src.utils import set_seed, choose_clients, select_optimizer, load_config, calculate_percentile_thresholds, calculate_b_alexnet_thresholds, calculate_b_resnet_thresholds
+from src.trainer import train
 from src.server import federated_learning
 
 
@@ -87,14 +87,12 @@ def early_test(model, test_loader, device, threshold, model_name):
                 torch.cuda.synchronize()
                 starter.record()
 
-                out_branch, out_main = model(inputs)
-                probs_branch = F.softmax(out_branch, dim=1)
-                entropy = torch.sum(-probs_branch * torch.log(probs_branch + 1e-9), dim=1)
-
-                _, preds_branch = torch.max(probs_branch, dim=1)
-                _, preds_main = torch.max(out_main, dim=1)
-
-                outputs = torch.where(entropy <= threshold, preds_branch, preds_main)
+                out_branch, out_main = model(inputs, threshold)
+                if out_main is None:
+                    _, outputs = torch.max(out_branch, dim=1)
+                
+                else:
+                    _, outputs = torch.max(out_main, dim=1)
             
                 # 計測終了
                 ender.record()
@@ -108,7 +106,7 @@ def early_test(model, test_loader, device, threshold, model_name):
                 torch.cuda.synchronize()
                 starter.record()
 
-                out_1, out_2, out_3 = model(inputs)
+                out_1, out_2, out_3 = model(inputs, threshold)
 
                 """
                 # ソフトマックスで閾値判定
@@ -120,28 +118,50 @@ def early_test(model, test_loader, device, threshold, model_name):
                 outputs = torch.where(probs >= threshold, preds_branch, preds_main)
                 """
                 
-                # エントロピーで閾値判定
-                probs_branch1 = F.softmax(out_1, dim=1)
-                entropy1 = torch.sum(-probs_branch1 * torch.log(probs_branch1 + 1e-9), dim=1)
+                if out_2 is None:
+                    _, outputs = torch.max(out_1, dim=1)
+                
+                elif out_3 is None:
+                    _, outputs = torch.max(out_2, dim=1)
 
-                probs_branch2 = F.softmax(out_2, dim=1)
-                entropy2 = torch.sum(-probs_branch2 * torch.log(probs_branch2 + 1e-9), dim=1)
+                else:           
+                    _, outputs = torch.max(out_3, dim=1)
 
-                _, preds_branch1 = torch.max(probs_branch1, dim=1)
-                _, preds_branch2 = torch.max(probs_branch2, dim=1)
-                _, preds_main = torch.max(out_3, dim=1)
+                # 計測終了
+                ender.record()
+                torch.cuda.synchronize()
 
-                # マスクの作成（閾値判定）
-                exit1_mask = entropy1 <= threshold[0]
-                exit2_mask = (~exit1_mask) & (entropy2 <= threshold[1])
-                main_mask  = ~(exit1_mask | exit2_mask)
+                curr_time = starter.elapsed_time(ender)
+                timings.append(curr_time)
+            
+            elif model_name == "B_ResNet_18" or model_name == "B_ResNet_34":
+                # 計測開始
+                torch.cuda.synchronize()
+                starter.record()
+                out_1, out_2, out_3, out_4 = model(inputs, threshold)
 
-                # 最終予測結果の統合
-                outputs = torch.zeros_like(labels)
-                outputs[exit1_mask] = preds_branch1[exit1_mask]
-                outputs[exit2_mask] = preds_branch2[exit2_mask]
-                outputs[main_mask]  = preds_main[main_mask]
+                """
+                # ソフトマックスで閾値判定
+                probs_branch = F.softmax(out_branch, dim=1)
+                probs_main = F.softmax(out_main, dim=1)
 
+                probs, preds_branch = torch.max(probs_branch, dim=1)
+                _, preds_main = torch.max(probs_main, dim=1)
+                outputs = torch.where(probs >= threshold, preds_branch, preds_main)
+                """
+                
+                if out_2 is None:
+                    _, outputs = torch.max(out_1, dim=1)
+                
+                elif out_3 is None:
+                    _, outputs = torch.max(out_2, dim=1)
+
+                elif out_4 is None:           
+                    _, outputs = torch.max(out_3, dim=1)
+                
+                else:
+                    _, outputs = torch.max(out_4, dim=1)
+                
                 # 計測終了
                 ender.record()
                 torch.cuda.synchronize()
@@ -179,8 +199,10 @@ if __name__ == "__main__":
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    train_loader, test_loader = get_datasets(batch_size, dataset)
-    _, speed_test_loader = get_datasets(1, dataset)
+    train_loader, val_loader, _ = get_datasets(batch_size, dataset, val_ratio=0.2)
+    _, _, speed_test_loader = get_datasets(1, dataset, val_ratio=0.2)
+
+    num_classes = 10 if dataset in ["MNIST", "CIFAR10"] else 100
 
     if model_name == "DNN":
         model = DNN().to(device)
@@ -192,11 +214,19 @@ if __name__ == "__main__":
         model = LeNet_5().to(device)
     elif model_name == "AlexNet":
         model = AlexNet().to(device)
+    elif model_name == "ResNet_18":
+        model = ResNet_18(num_classes=num_classes).to(device)
+    elif model_name == "ResNet_34":
+        model = ResNet_34(num_classes=num_classes).to(device)
     elif model_name == "B_LeNet_5":
         model = B_LeNet_5().to(device)
     elif model_name == "B_AlexNet":
         model = B_AlexNet().to(device)
-    
+    elif model_name == "B_ResNet_18":
+        model = B_ResNet_18(num_classes=num_classes).to(device)
+    elif model_name == "B_ResNet_34":
+        model = B_ResNet_34(num_classes=num_classes).to(device)
+
     optimizer = select_optimizer(optimizer, model, lr)
 
     model.train()
@@ -215,21 +245,35 @@ if __name__ == "__main__":
             print(f"Round {round+1}/ {global_rounds}")
 
             train(optimizer, model, train_loader, device, model_name)
+        
+        if model_name in ["B_LeNet_5", "B_AlexNet", "B_ResNet_18", "B_ResNet_34"]:
+            num_thresholds = 8
+        
+        else:
+            num_thresholds = 1
 
         # モデルを評価
         if model_name == "B_LeNet_5":
-            test_thresholds = [0.01, 0.05, 0.1, 0.3, 0.5, 1.0, 2.0, float('inf')]
-
+            test_thresholds = calculate_percentile_thresholds(model, val_loader, device, num_thresholds=num_thresholds)
+            print(f"算出された閾値: {test_thresholds}")
+            
             for th in test_thresholds:
-                acc, timings = early_test(model, speed_test_loader, device, th, model_name)
+                test_acc, timings = early_test(model, speed_test_loader, device, th, model_name)
                 speed_history.append(np.mean(timings))
                 acc_history.append(test_acc)
 
         elif model_name == "B_AlexNet":
-            test_thresholds = [
-                [0.01, 0.01], [0.05, 0.05], [0.1, 0.1], 
-                [0.5, 0.5], [1.0, 1.0], [float('inf'), float('inf')]
-            ]
+            test_thresholds = calculate_b_alexnet_thresholds(model, val_loader, device, num_thresholds=num_thresholds)
+            print(f"算出された閾値: {test_thresholds}")
+
+            for th in test_thresholds:
+                test_acc, timings = early_test(model, speed_test_loader, device, th, model_name)
+                speed_history.append(np.mean(timings))
+                acc_history.append(test_acc)
+        
+        elif model_name == "B_ResNet_18" or model_name == "B_ResNet_34":
+            test_thresholds = calculate_b_resnet_thresholds(model, val_loader, device, num_thresholds=num_thresholds)
+            print(f"算出された閾値: {test_thresholds}")
 
             for th in test_thresholds:
                 test_acc, timings = early_test(model, speed_test_loader, device, th, model_name)
@@ -240,9 +284,9 @@ if __name__ == "__main__":
             test_acc, timings = test(model, speed_test_loader, device)
             speed_history.append(np.mean(timings))
             acc_history.append(test_acc)
-
-    pred_speed = np.mean(speed_history)
-    final_acc = np.mean(acc_history)
+    
+    pred_speed = np.array(speed_history).reshape(ite_num, 1).mean(axis=0)
+    final_acc = np.array(acc_history).reshape(ite_num, 1).mean(axis=0)
 
     # 出力先のパス設定
     save_dir = os.path.join(
@@ -257,7 +301,7 @@ if __name__ == "__main__":
 
     # csv出力
     df = pd.DataFrame({
-        "round": np.arange(1, global_rounds + 1),
+        "runtime": pred_speed,
         "accuracy": final_acc
     })
     csv_path = os.path.join(save_dir, f"{model_name}.csv")
@@ -266,20 +310,18 @@ if __name__ == "__main__":
     #グラフ出力
     plt.figure(figsize=(10, 6))
 
-    rounds = np.arange(1, global_rounds + 1) # グラフのX軸（ラウンド数）
-
-    plt.plot(rounds, final_acc, linestyle='-', color='b', label='Simple Average')
+    plt.plot(pred_speed, final_acc, marker='o', linestyle='-', color='b', label='Average vs Speed')
 
     # グラフのタイトルとラベル
     plt.title(f'{model_name}', fontsize=16)
-    plt.xlabel('Round', fontsize=12)
+    plt.xlabel('Runtime (ms)', fontsize=12)
     plt.ylabel('Accuracy (%)', fontsize=12)
     plt.grid(True) # グリッド線を表示
     plt.legend() # 凡例
 
     # 範囲指定
-    plt.xlim(0, global_rounds)
-    plt.ylim(0, 100)
+    plt.xlim(0.4, 1.6)
+    plt.ylim(72, 79)
 
     combined_path = os.path.join(save_dir, f"{model_name}.png")
 

@@ -38,6 +38,16 @@ def train(optimizer, model, train_loader, device, model_name):
             loss_3 = criterion(out_3, labels)
             loss = 0.2 * loss_1 + 0.3 * loss_2 + 0.5 * loss_3
         
+        elif model_name == "B_ResNet_18" or model_name == "B_ResNet_34":
+            # 推論
+            out_1, out_2, out_3, out_4 = model(images)
+            # lossを計算
+            loss_1 = criterion(out_1, labels)
+            loss_2 = criterion(out_2, labels)
+            loss_3 = criterion(out_3, labels)
+            loss_4 = criterion(out_4, labels)
+            loss = 0.1 * loss_1 + 0.2 * loss_2 + 0.3 * loss_3 + 0.4 * loss_4
+        
         else:
             outputs = model(images)
             loss = criterion(outputs, labels)
@@ -81,17 +91,15 @@ def early_test(model, test_loader, device, threshold, model_name):
             inputs, labels = inputs.to(device), labels.to(device)
 
             if model_name == "B_LeNet_5":
-                out_branch, out_main = model(inputs)
-                probs_branch = F.softmax(out_branch, dim=1)
-                entropy = torch.sum(-probs_branch * torch.log(probs_branch + 1e-9), dim=1)
-
-                _, preds_branch = torch.max(probs_branch, dim=1)
-                _, preds_main = torch.max(out_main, dim=1)
-
-                outputs = torch.where(entropy <= threshold, preds_branch, preds_main)
+                out_branch, out_main = model(inputs, threshold)
+                if out_main is None:
+                    _, outputs = torch.max(out_branch, dim=1)
+                
+                else:
+                    _, outputs = torch.max(out_main, dim=1)
 
             elif model_name == "B_AlexNet":
-                out_1, out_2, out_3 = model(inputs)
+                out_1, out_2, out_3 = model(inputs, threshold)
 
                 """
                 # ソフトマックスで閾値判定
@@ -103,27 +111,39 @@ def early_test(model, test_loader, device, threshold, model_name):
                 outputs = torch.where(probs >= threshold, preds_branch, preds_main)
                 """
                 
-                # エントロピーで閾値判定
-                probs_branch1 = F.softmax(out_1, dim=1)
-                entropy1 = torch.sum(-probs_branch1 * torch.log(probs_branch1 + 1e-9), dim=1)
+                if out_2 is None:
+                    _, outputs = torch.max(out_1, dim=1)
+                
+                elif out_3 is None:
+                    _, outputs = torch.max(out_2, dim=1)
 
-                probs_branch2 = F.softmax(out_2, dim=1)
-                entropy2 = torch.sum(-probs_branch2 * torch.log(probs_branch2 + 1e-9), dim=1)
+                else:           
+                    _, outputs = torch.max(out_3, dim=1)
+        
+            elif model_name == "B_ResNet_18" or model_name == "B_ResNet_34":
+                out_1, out_2, out_3, out_4 = model(inputs, threshold)
 
-                _, preds_branch1 = torch.max(probs_branch1, dim=1)
-                _, preds_branch2 = torch.max(probs_branch2, dim=1)
-                _, preds_main = torch.max(out_3, dim=1)
+                """
+                # ソフトマックスで閾値判定
+                probs_branch = F.softmax(out_branch, dim=1)
+                probs_main = F.softmax(out_main, dim=1)
 
-                # マスクの作成（閾値判定）
-                exit1_mask = entropy1 <= threshold[0]
-                exit2_mask = (~exit1_mask) & (entropy2 <= threshold[1])
-                main_mask  = ~(exit1_mask | exit2_mask)
+                probs, preds_branch = torch.max(probs_branch, dim=1)
+                _, preds_main = torch.max(probs_main, dim=1)
+                outputs = torch.where(probs >= threshold, preds_branch, preds_main)
+                """
+                
+                if out_2 is None:
+                    _, outputs = torch.max(out_1, dim=1)
+                
+                elif out_3 is None:
+                    _, outputs = torch.max(out_2, dim=1)
 
-                # 最終予測結果の統合
-                outputs = torch.zeros_like(labels)
-                outputs[exit1_mask] = preds_branch1[exit1_mask]
-                outputs[exit2_mask] = preds_branch2[exit2_mask]
-                outputs[main_mask]  = preds_main[main_mask]
+                elif out_4 is None:           
+                    _, outputs = torch.max(out_3, dim=1)
+                
+                else:
+                    _, outputs = torch.max(out_4, dim=1)
 
             correct_preds += outputs.eq(labels).sum().item()
             total_preds += outputs.size(0)

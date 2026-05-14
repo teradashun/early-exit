@@ -2,49 +2,56 @@ import numpy as np
 import torch
 import torchvision
 import torchvision.transforms as transforms
-from torch.utils.data import Subset
+from torch.utils.data import Subset, DataLoader, random_split
 
 
-def get_datasets(batch_size, data_name):
+def get_datasets(batch_size, data_name, val_ratio=0.2):
     if data_name == "MNIST":
-        train_dataset = torchvision.datasets.MNIST(root="./data",
+        full_train_dataset = torchvision.datasets.MNIST(root="./data",
                                             train=True,
                                             transform=transforms.ToTensor(),
                                             download=True)
-        
-        train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
-                                            batch_size=batch_size,
-                                            shuffle=False)
 
         test_dataset = torchvision.datasets.MNIST(root="./data",
                                             train=False,
                                             transform=transforms.ToTensor(),
                                             download=True)
-
-        test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
-                                            batch_size=batch_size,
-                                            shuffle=False)
     
     elif data_name == "CIFAR10":
-        train_dataset = torchvision.datasets.CIFAR10(root="./data/CIFAR_10",
+        full_train_dataset = torchvision.datasets.CIFAR10(root="./data/CIFAR_10",
                                             train=True,
                                             transform=transforms.ToTensor(),
                                             download=True)
-        
-        train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
-                                            batch_size=batch_size,
-                                            shuffle=False)
 
         test_dataset = torchvision.datasets.CIFAR10(root="./data/CIFAR_10",
                                             train=False,
                                             transform=transforms.ToTensor(),
                                             download=True)
+    
+    elif data_name == "CIFAR100":
+        full_train_dataset = torchvision.datasets.CIFAR100(root="./data/CIFAR_100",
+                                            train=True,
+                                            transform=transforms.ToTensor(),
+                                            download=True)
 
-        test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
-                                            batch_size=batch_size,
-                                            shuffle=False)
+        test_dataset = torchvision.datasets.CIFAR100(root="./data/CIFAR_100",
+                                            train=False,
+                                            transform=transforms.ToTensor(),
+                                            download=True)
+    
+    else:
+        raise ValueError(f"Unsupported dataset: {data_name}")
+    
+    val_size = int(len(full_train_dataset) * val_ratio)
+    train_size = len(full_train_dataset) - val_size
 
-    return train_loader, test_loader
+    train_dataset, val_dataset = random_split(full_train_dataset, [train_size, val_size])
+
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+    return train_loader, val_loader, test_loader
 
 
 def split_dataset(dataset, num_clients, dirichlet_alpha):

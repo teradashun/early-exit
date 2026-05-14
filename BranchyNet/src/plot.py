@@ -30,7 +30,7 @@ def plot_integrated_results_recursive(base_directory):
     plt.title('Comparison of Accuracy Across Different Models', fontsize=14)
     plt.xlabel('Round', fontsize=12)
     plt.ylabel('Accuracy (%)', fontsize=12)
-    plt.ylim(0, 100)
+    plt.ylim(72, 82)
     plt.grid(True, linestyle=':', alpha=0.6)
     plt.legend(loc='lower right')
     
