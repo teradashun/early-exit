@@ -105,7 +105,7 @@ def calculate_b_alexnet_thresholds(model, val_loader, device, num_thresholds=8):
     thresholds = [[th1, th2] for th1, th2 in zip(th1_list, th2_list)]
 
     # 最後に全てMain Exitに行く閾値を追加
-    thresholds.append([-float('inf'), -float('inf')])
+    thresholds.append([float('inf'), float('inf')])
 
     return thresholds
 
@@ -148,6 +148,6 @@ def calculate_b_resnet_thresholds(model, val_loader, device, num_thresholds=8):
     thresholds = [[th1, th2, th3] for th1, th2, th3 in zip(th1_list, th2_list, th3_list)]
 
     # 最後に全てMain Exitに行く閾値を追加
-    thresholds.append([-float('inf'), -float('inf'), -float('inf')])
+    thresholds.append([float('inf'), float('inf'), float('inf')])
 
     return thresholds

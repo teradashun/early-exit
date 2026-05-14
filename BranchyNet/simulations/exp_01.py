@@ -285,8 +285,8 @@ if __name__ == "__main__":
             speed_history.append(np.mean(timings))
             acc_history.append(test_acc)
     
-    pred_speed = np.array(speed_history).reshape(ite_num, 9).mean(axis=0)
-    final_acc = np.array(acc_history).reshape(ite_num, 9).mean(axis=0)
+    pred_speed = np.array(speed_history).reshape(ite_num, 1).mean(axis=0)
+    final_acc = np.array(acc_history).reshape(ite_num, 1).mean(axis=0)
 
     # 出力先のパス設定
     save_dir = os.path.join(

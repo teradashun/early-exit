@@ -3,9 +3,9 @@ training:
   epochs: 5
   lr: 0.0001   # {SGD: 0.1, Adam: 0.001}
   optimizer: Adam   # SGD or Adam
-  model_name: B_ResNet_34   # [DNN, MNIST_CNN, CIFAR10_CNN, LeNet_5, ResNet_18, ResNet_34, B_LeNet_5, B_AlexNet, B_ResNet_18, B_ResNet_34]
+  model_name: ResNet_34   # [DNN, MNIST_CNN, CIFAR10_CNN, LeNet_5, ResNet_18, ResNet_34, B_LeNet_5, B_AlexNet, B_ResNet_18, B_ResNet_34]
   dataset: CIFAR10   # [MNIST, CIFAR10, CIFAR100]
-  early_exit: True   # bool
+  early_exit: False   # bool
   threshold: 0.025
 
 FL:
