@@ -1,6 +1,6 @@
 training:
   batch_size: 256
-  epochs: 50
+  epochs: 350
   lr: 0.1   # {SGD: 0.1, Adam: 0.001}
   optim_name: SGD   # SGD or Adam
   model_name: eenet32   # [DNN, MNIST_CNN, CIFAR10_CNN,
@@ -11,7 +11,7 @@ training:
   dataset: CIFAR10   # [MNIST, CIFAR10, CIFAR100]
   num_ee: 2  # [2, 4, 8]
   distribution: pareto  # [pareto, linear, fine] # exitの分布を決定するパラメータ
-  exit_type: bnpool  # [plain, bnpool]　
+  exit_type: pool  # [plain, pool, bnpool]　
   loss_func: v2  # [v1, v2, v3, v4]
   zero_init_residual: True  # bool # 初期化方法の違いによる性能差を評価するためのフラグ
   exit_plot_num: 8  # 結果のプロット数

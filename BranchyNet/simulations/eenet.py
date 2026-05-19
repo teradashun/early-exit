@@ -105,20 +105,26 @@ class ExitBlock(nn.Module):
     def __init__(self, inplanes, num_classes, input_shape, exit_type):
         super(ExitBlock, self).__init__()
         _, width, height = input_shape
+
+        hidden_channels = max(inplanes * 2, 128)
         self.expansion = width * height if exit_type == 'plain' else 1
 
         self.layers = nn.ModuleList()
+        self.layers,.append(nn.Conv2d(inplanes, hidden_channels, kernel_size=3, stride=2, padding=1, bias=False))
         if exit_type == 'bnpool':
-            self.layers.append(nn.BatchNorm2d(inplanes))
+            self.layers.append(nn.BatchNorm2d(hidden_channels))
+
+        self.layers.append(nn.ReLU(inplace=True))
+        
         if exit_type != 'plain':
             self.layers.append(nn.AdaptiveAvgPool2d(1))
 
         self.confidence = nn.Sequential(
-            nn.Linear(inplanes * self.expansion, 1),
+            nn.Linear(hidden_channels * self.expansion, 1),
             nn.Sigmoid(),
         )
         self.classifier = nn.Sequential(
-            nn.Linear(inplanes * self.expansion, num_classes),
+            nn.Linear(hidden_channels * self.expansion, num_classes),
             nn.Softmax(dim=1),
         )
 

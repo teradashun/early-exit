@@ -60,7 +60,7 @@ def loss_v0(loss_func, pred, device, target, conf, cost):
     pred_loss = 0
     cost_loss = 0
     for i in range(num_ee + 1):
-        pred_loss += F.nll_loss(pred[i].log(), target)
+        pred_loss += F.nll_loss(torch.log(pred[i] + 1e-8), target)
     cum_loss = pred_loss
 
     return cum_loss, pred_loss, cost_loss
@@ -87,7 +87,7 @@ def loss_v1(loss_func, pred, device, target, conf, cost):
     for i in range(num_ee-1, -1, -1):
         cum_pred = conf[i] * pred[i] + (1-conf[i]) * cum_pred
         cum_cost = conf[i] * cost[i] + (1-conf[i]) * cum_cost
-    pred_loss = F.nll_loss(cum_pred.log(), target)
+    pred_loss = F.nll_loss(torch.log(cum_pred + 1e-8), target)
     cost_loss = cum_cost.mean()
     cum_loss = pred_loss + coef_lambda * cost_loss
 
@@ -142,7 +142,7 @@ def loss_v3(loss_func, pred, device, target, conf, cost):
 
     cum_loss = 0
     for i in range(num_ee + 1):
-        pred_loss = F.nll_loss(pred[i].log(), target)
+        pred_loss = F.nll_loss(torch.log(pred[i] + 1e-8), target)
         cost_loss = cost[i].mean()
         cum_loss += norm_conf[i] * (pred_loss + coef_lambda * cost_loss)
 
@@ -178,7 +178,7 @@ def loss_v4(loss_func, exit_tag, pred, device, target, conf, cost):
 
         conf_loss += F.binary_cross_entropy(conf[i], exiting_examples, conf_weights)
 
-    pred_loss = F.nll_loss(cum_pred.log(), target)
+    pred_loss = F.nll_loss(torch.log(cum_pred + 1e-8), target)
     cost_loss = cum_cost.mean()
     cum_loss = pred_loss + coef_lambda * cost_loss + conf_loss
 
@@ -201,7 +201,7 @@ def update_exit_tags(batch_size, device, pred, target, cost):
     exit_tag = (torch.ones(batch_size) * num_ee).to(device, dtype=torch.int)
 
     for exit in range(num_ee + 1):
-        loss = F.nll_loss(pred[exit].log(), target, reduction='none') \
+        loss = F.nll_loss(torch.log(pred[exit] + 1e-8), target, reduction='none') \
              + coef_lambda * cost[exit]
 
         smaller_values = (loss < cum_loss).to(device, dtype=torch.float)
