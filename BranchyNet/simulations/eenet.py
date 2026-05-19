@@ -110,7 +110,7 @@ class ExitBlock(nn.Module):
         self.expansion = width * height if exit_type == 'plain' else 1
 
         self.layers = nn.ModuleList()
-        self.layers,.append(nn.Conv2d(inplanes, hidden_channels, kernel_size=3, stride=2, padding=1, bias=False))
+        self.layers.append(nn.Conv2d(inplanes, hidden_channels, kernel_size=3, stride=2, padding=1, bias=False))
         if exit_type == 'bnpool':
             self.layers.append(nn.BatchNorm2d(hidden_channels))
 
