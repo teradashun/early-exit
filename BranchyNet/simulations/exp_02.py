@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 
 from simulations.eenet import eenet18, eenet34, eenet50, eenet101, eenet152, eenet20, eenet32, eenet44, eenet56, eenet110
-from simulations.utils import set_seed, load_config, select_optimizer, calculate_sigmoid_percentile_thresholds
+from simulations.utils import set_seed, load_config, select_optimizer, calculate_percentile_thresholds
 from simulations.loss_functions import loss
 from src.server import federated_learning
 from src.dataset import get_datasets, split_dataset
@@ -175,7 +175,7 @@ if __name__ == "__main__":
             train(optimizer, model, train_loader, device, model_name, loss_func)
 
         # モデルを評価
-        test_thresholds = calculate_sigmoid_percentile_thresholds(model, val_loader, device, num_thresholds=exit_plot_num, num_ee=num_ee)
+        test_thresholds = calculate_percentile_thresholds(model, val_loader, device, num_thresholds=exit_plot_num, num_ee=num_ee)
         print(f"算出された閾値: {test_thresholds}")
         for th in test_thresholds:
             test_acc, timings = early_test(model, speed_test_loader, device, th, model_name)

@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch.optim.lr_scheduler import StepLR
 
 from simulations.eenet import eenet18, eenet34, eenet50, eenet101, eenet152, eenet20, eenet32, eenet44, eenet56, eenet110
-from simulations.utils import set_seed, load_config, acc_average, select_optimizer, calculate_sigmoid_percentile_thresholds
+from simulations.utils import set_seed, load_config, acc_average, select_optimizer, calculate_percentile_thresholds
 from simulations.loss_functions import loss
 from src.server import federated_learning
 from src.dataset import get_datasets, split_dataset
@@ -163,7 +163,7 @@ if __name__ == "__main__":
             scheduler.step()
 
             # モデルを評価
-            test_thresholds = calculate_sigmoid_percentile_thresholds(model, val_loader, device, num_thresholds=exit_plot_num, num_ee=num_ee)
+            test_thresholds = calculate_percentile_thresholds(model, val_loader, device, num_thresholds=exit_plot_num, num_ee=num_ee)
             test_acc = early_test(model, speed_test_loader, device, test_thresholds[-1], model_name)
             acc_history[round].append(test_acc)
             print(f"accuracy: {test_acc:.2f}%")
