@@ -52,7 +52,7 @@ def acc_average(acc_history: list[list]) -> list:
 """
 
 
-def calculate_sigmoid_percentile_thresholds(model, val_loader, device, num_ee, num_thresholds=8):
+def calculate_percentile_thresholds(model, val_loader, device, num_ee, num_thresholds=8):
     """
     EENetの全Exitに対して、パーセンタイルに基づいた確信度閾値を計算する
     """
